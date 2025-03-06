@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class PlayerModelController
+public class HumanModelController
 {
 
   Animator _animator;
@@ -13,8 +13,12 @@ public class PlayerModelController
 
   float _moveSpeed;
 
+  public bool _IsTakingLongAction { get { return _isTakingLongAction; } }
+  public bool _IsLongActionCancelable { get { return _isLongActionCancelable; } }
+  bool _isTakingLongAction, _isLongActionCancelable;
+
   //
-  public PlayerModelController()
+  public HumanModelController()
   {
 
     _model = GameObject.Instantiate(GameObject.Find("humanoid0")).transform;
@@ -25,11 +29,11 @@ public class PlayerModelController
   }
 
   //
-  public void Update(Transform transform, bool isTakingLongAction)
+  public void Update(Transform transform)
   {
 
     // Stop move speed
-    if (isTakingLongAction)
+    if (_isTakingLongAction)
     {
       _moveSpeed += (0f - _moveSpeed) * Time.deltaTime * 5f;
     }
@@ -59,6 +63,32 @@ public class PlayerModelController
     // Lerp 4th layer weight
     _fullBodyWeight += (_desiredFullBodyWeight - _fullBodyWeight) * Time.deltaTime * 5f;
     _animator.SetLayerWeight(3, _fullBodyWeight);
+  }
+
+  //
+  public void EmoteStart(string emoteName, bool isCancelable)
+  {
+    _isTakingLongAction = true;
+    _isLongActionCancelable = isCancelable;
+
+    _FullBodyWeight = 1f;
+
+    _Animator.applyRootMotion = true;
+
+    _Animator.ResetTrigger("ExitEmote");
+    _Animator.Play(emoteName, 3);
+  }
+  public void EmoteEnd()
+  {
+    _isTakingLongAction = false;
+
+    _FullBodyWeight = 0f;
+
+    _Animator.applyRootMotion = false;
+  }
+  public void EmoteCancel()
+  {
+    _Animator.SetTrigger("ExitEmote");
   }
 
   //
@@ -123,6 +153,18 @@ public class PlayerModelController
     joint = hip.gameObject.AddComponent<HingeJoint>();
     joint.connectedBody = legR;
     SetJointLimits(joint, -45, 45);
+
+    //
+    //SetGameLayerRecursive(_model.gameObject, 9);
+  }
+
+  private void SetGameLayerRecursive(GameObject gameObject, int layer)
+  {
+    gameObject.layer = layer;
+    foreach (Transform child in gameObject.transform)
+    {
+      SetGameLayerRecursive(child.gameObject, layer);
+    }
   }
 
 }

@@ -18,6 +18,7 @@ class GameController : MonoBehaviour
 
     new BlockManager();
     new AudioManager();
+    new SimpleTrapManager();
   }
 
   void Update()

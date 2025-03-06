@@ -5,7 +5,9 @@ using Unity.Netcode.Components;
 using Unity.Services.Vivox;
 using UnityEngine;
 
-public class PlayerController : NetworkBehaviour
+using System.Linq;
+
+public class PlayerController : CustomNetworkController
 {
 
   //
@@ -13,20 +15,10 @@ public class PlayerController : NetworkBehaviour
   public static PlayerController s_LocalPlayer;
 
   //
-  PlayerModelController _model;
-  Collider _collider;
-  Rigidbody _rb;
-
   NetworkObject _networkObject;
   VivoxController _vivoxController;
 
-  public bool _isAlive { get { return _health > 0; } }
-  int _health;
-
-  Vector3 _moveDirection;
-
   NetworkVariable<float> _lookRotX = new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
-
   HandController _leftHand, _rightHand;
   class HandController
   {
@@ -40,28 +32,11 @@ public class PlayerController : NetworkBehaviour
     }
   }
 
-  //
-  PlayerNetworkData _networkData;
-  struct PlayerNetworkData : INetworkSerializable
-  {
-    public Vector3 Position;
-    public Quaternion Rotation;
-
-    // INetworkSerializable
-    public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
-    {
-      serializer.SerializeValue(ref Position);
-      serializer.SerializeValue(ref Rotation);
-    }
-    // ~INetworkSerializable
-  }
-
-  //
-
-
   // Start is called once before the first execution of Update after the MonoBehaviour is created
-  void Start()
+  new void Start()
   {
+    base.Start();
+
     s_players ??= new();
     s_players.Add(this);
     if (IsLocalPlayer)
@@ -73,7 +48,6 @@ public class PlayerController : NetworkBehaviour
 
     //
     _collider = transform.GetChild(0).GetComponent<Collider>();
-    _rb = GetComponent<Rigidbody>();
 
     // Network setup
     _networkObject = GetComponent<NetworkObject>();
@@ -85,43 +59,6 @@ public class PlayerController : NetworkBehaviour
     }
 
     Spawn();
-  }
-
-  void JoinChannelLobby()
-  {
-    StartCoroutine(JoinChannelLobbyCo());
-  }
-  IEnumerator JoinChannelLobbyCo()
-  {
-    var t = _vivoxController.InitializeAsync();
-    yield return new WaitUntil(() => t.IsCompleted);
-
-    t = _vivoxController.LoginToVivoxAsync();
-    yield return new WaitUntil(() => t.IsCompleted);
-
-    t = _vivoxController.JoinChannelAsync();
-    yield return new WaitUntil(() => t.IsCompleted);
-
-    //if (!_networkObject.IsOwnedByServer)
-      VivoxService.Instance.MuteInputDevice();
-  }
-  void JoinChannelDeath()
-  {
-    StartCoroutine(JoinChannelDeathCo());
-  }
-  IEnumerator JoinChannelDeathCo()
-  {
-    var t = _vivoxController.InitializeAsync();
-    yield return new WaitUntil(() => t.IsCompleted);
-
-    t = _vivoxController.LoginToVivoxAsync();
-    yield return new WaitUntil(() => t.IsCompleted);
-
-    t = _vivoxController.JoinChannelDeathAsync();
-    yield return new WaitUntil(() => t.IsCompleted);
-
-    //if (!_networkObject.IsOwnedByServer)
-      VivoxService.Instance.MuteInputDevice();
   }
 
   //
@@ -147,12 +84,10 @@ public class PlayerController : NetworkBehaviour
       if (Input.GetKey(KeyCode.S))
         moveDir += -transform.forward;
       moveDir = moveDir.normalized;
-      if (_isTakingLongAction)
+      if (_model._IsTakingLongAction)
       {
-        if (_isLongActionCancelable && moveDir.magnitude > 0.25f)
-        {
+        if (_model._IsLongActionCancelable && moveDir.magnitude > 0.25f)
           EmoteRpc(2, "", false);
-        }
 
         _moveDirection = Vector3.zero;
       }
@@ -164,8 +99,8 @@ public class PlayerController : NetworkBehaviour
 
       var emptyInteract = false;
 
-      RaycastHit hit;
-      if (Physics.SphereCast(Camera.main.ScreenPointToRay(new Vector2(Screen.width / 2f, Screen.height / 2f)), 0.1f, out hit))
+      var hit = SimpleSpherecast(0.1f);
+      if (hit.collider != null)
       {
 
         if (leftClick || rightClick)
@@ -229,7 +164,7 @@ public class PlayerController : NetworkBehaviour
       }
 
       //
-      if (!_isTakingLongAction)
+      if (!_model._IsTakingLongAction)
       {
 
         // Either clicked on empty space, or clicked and there was nothing to interact with
@@ -260,98 +195,88 @@ public class PlayerController : NetworkBehaviour
         PickupableManager.SpawnPickupable(new Vector3(2f, 10f, 0f), PickupableManager.PickupableType.APPLE);
         PickupableManager.SpawnPickupable(new Vector3(2.2f, 11f, 0f), PickupableManager.PickupableType.BANANA);
       }
+      if (Input.GetKeyDown(KeyCode.U))
+        SimpleTrapManager.SpawnTrap(SimpleTrapManager.TrapType.CAR, new Vector3(-30f, 1.2f, 0f));
     }
     else
     {
+
+      // Respawn
       if (Input.GetKeyDown(KeyCode.P))
-      {
         SpawnServerRpc();
-      }
     }
-  }
-
-  //
-  bool _isTakingLongAction, _isLongActionCancelable;
-
-  [Rpc(SendTo.Everyone)]
-  void EmoteRpc(int mode, string emoteName, bool cancelable)
-  {
-    switch (mode)
-    {
-
-      case 0:
-
-        EmoteStart(emoteName, cancelable);
-        break;
-      case 1:
-
-        EmoteEnd();
-        break;
-      case 2:
-
-        EmoteCancel();
-        break;
-
-    }
-  }
-  void EmoteStart(string emoteName, bool cancelable)
-  {
-    _isTakingLongAction = true;
-    _isLongActionCancelable = cancelable;
-
-    _model._FullBodyWeight = 1f;
-
-    _model._Animator.applyRootMotion = true;
-
-    _model._Animator.ResetTrigger("ExitEmote");
-    _model._Animator.Play(emoteName, 3);
-  }
-  void EmoteEnd()
-  {
-    _isTakingLongAction = false;
-    _model._FullBodyWeight = 0f;
-
-    _model._Animator.applyRootMotion = false;
-  }
-  void EmoteCancel()
-  {
-    _model._Animator.SetTrigger("ExitEmote");
-  }
-
-  //
-  void Punch(Side side)
-  {
-    EmoteRpc(0, side == Side.LEFT ? "Punch_Left" : "Punch_Right", false);
-  }
-
-  void Emote(int index, bool cancelable)
-  {
-    EmoteRpc(0, $"Emote{index}", cancelable);
   }
 
   // Update is called once per frame
-  void Update()
+  new void Update()
   {
+    base.Update();
 
+    //
+    if (IsLocalPlayer)
+    {
+
+      // Move vivox 3d position with camera
+      if (VivoxService.Instance != null && VivoxService.Instance.ActiveChannels.Count > 0 && _vivoxController._InChannelMain)
+        VivoxService.Instance.Set3DPosition(Camera.main.gameObject, _vivoxController._ChannelName);
+
+      // Handle input
+      HandleInput();
+    }
+  }
+
+  //
+  new void FixedUpdate()
+  {
+    base.FixedUpdate();
+
+    if (_isAlive)
+      if (IsLocalPlayer)
+      {
+
+        // Check fall to death
+        if (_rb.position.y < -30f)
+          TakeDamageRpc(_health);
+      }
+  }
+
+  public void LateUpdate()
+  {
 
     if (_isAlive)
     {
 
+      // Set spine tilt
+      var canSetSpineTilt = !_model._IsTakingLongAction || !_model._IsLongActionCancelable || (_model._Animator.GetCurrentAnimatorClipInfo(3).Length > 0 && _model._Animator.GetCurrentAnimatorClipInfo(3)[0].clip.isLooping);
+      if (canSetSpineTilt)
+        _model.SetSpineTilt(Mathf.Lerp(70f, -70f, (_lookRotX.Value + 2f) / 4f));
+
       if (IsLocalPlayer)
       {
-
-        // Vivox
-        if (VivoxService.Instance != null && VivoxService.Instance.ActiveChannels.Count > 0 && _vivoxController._InChannelMain)
-          VivoxService.Instance.Set3DPosition(gameObject, _vivoxController._ChannelName);
+        // Move camera with player
+        var camera = Camera.main;
+        camera.transform.position = _model._Transform.position + _model._Transform.up * 0.15f + _model._Transform.forward * -0.1f; //transform.position + transform.forward * 0.2f + transform.up * 1f;
+        camera.transform.rotation = Quaternion.LookRotation(new Vector3(transform.forward.x, _lookRotX.Value, transform.forward.z));
       }
 
-      //
-      _model.Update(transform, _isTakingLongAction);
-    }
+      // Move grabbed object
+      if (_leftHand != null)
+      {
 
-    // Handle input
-    if (IsLocalPlayer)
-      HandleInput();
+        var movePosition = _model._Animator.GetBoneTransform(HumanBodyBones.LeftHand).position;
+        if (IsLocalPlayer)
+          _leftHand._Rb.rotation = Camera.main.transform.rotation;
+        _leftHand._Rb.position = movePosition;
+      }
+      if (_rightHand != null)
+      {
+
+        var movePosition = _model._Animator.GetBoneTransform(HumanBodyBones.RightHand).position;
+        if (IsLocalPlayer)
+          _rightHand._Rb.rotation = Camera.main.transform.rotation;
+        _rightHand._Rb.position = movePosition;
+      }
+    }
   }
 
   //
@@ -521,74 +446,55 @@ public class PlayerController : NetworkBehaviour
 
   }
 
-  //
-  public void FixedUpdate()
+  // Network helper functions
+  [Rpc(SendTo.Everyone)]
+  public void RequestSpawnPickupableRpc(ulong networkId, PickupableManager.PickupableType asType)
   {
-
-    if (_isAlive)
-    {
-      if (IsLocalPlayer)
-      {
-
-        //
-        if (_isTakingLongAction)
-        {
-          var pos = _model._Animator.GetBoneTransform(HumanBodyBones.Hips).position;
-          pos.y = _rb.position.y;
-          _rb.MovePosition(pos);
-        }
-
-        // Move player rb
-        else if (_moveDirection.magnitude > 0f)
-        {
-          var moveSpeed = 8f;
-          var movePosition = _rb.position + _moveDirection * Time.fixedDeltaTime * moveSpeed;
-          _rb.MovePosition(movePosition);
-        }
-
-      }
-
-    }
+    PickupableManager.RequestSpawnPickupableRpc(networkId, asType);
   }
 
-  public void LateUpdate()
+  #region Vivox
+
+  void JoinChannelLobby()
   {
-
-    if (_isAlive)
-    {
-
-      // Set spine tilt
-      var canSetSpineTilt = !_isTakingLongAction || !_isLongActionCancelable || (_model._Animator.GetCurrentAnimatorClipInfo(3).Length > 0 && _model._Animator.GetCurrentAnimatorClipInfo(3)[0].clip.isLooping);
-      if (canSetSpineTilt)
-        _model.SetSpineTilt(Mathf.Lerp(70f, -70f, (_lookRotX.Value + 2f) / 4f));
-
-      if (IsLocalPlayer)
-      {
-        // Move camera with player
-        var camera = Camera.main;
-        camera.transform.position = _model._Transform.position + _model._Transform.up * 0.15f + _model._Transform.forward * -0.1f; //transform.position + transform.forward * 0.2f + transform.up * 1f;
-        camera.transform.rotation = Quaternion.LookRotation(new Vector3(transform.forward.x, _lookRotX.Value, transform.forward.z));
-      }
-
-      // Move grabbed object
-      if (_leftHand != null)
-      {
-
-        var movePosition = _model._Animator.GetBoneTransform(HumanBodyBones.LeftHand).position;
-        if (IsLocalPlayer)
-          _leftHand._Rb.rotation = Camera.main.transform.rotation;
-        _leftHand._Rb.position = movePosition;
-      }
-      if (_rightHand != null)
-      {
-
-        var movePosition = _model._Animator.GetBoneTransform(HumanBodyBones.RightHand).position;
-        if (IsLocalPlayer)
-          _rightHand._Rb.rotation = Camera.main.transform.rotation;
-        _rightHand._Rb.position = movePosition;
-      }
-    }
+    StartCoroutine(JoinChannelLobbyCo());
   }
+  IEnumerator JoinChannelLobbyCo()
+  {
+    var t = _vivoxController.InitializeAsync();
+    yield return new WaitUntil(() => t.IsCompleted);
+
+    t = _vivoxController.LoginToVivoxAsync();
+    yield return new WaitUntil(() => t.IsCompleted);
+
+    t = _vivoxController.JoinChannelAsync();
+    yield return new WaitUntil(() => t.IsCompleted);
+
+    //if (!_networkObject.IsOwnedByServer)
+    VivoxService.Instance.MuteInputDevice();
+  }
+  void JoinChannelDeath()
+  {
+    StartCoroutine(JoinChannelDeathCo());
+  }
+  IEnumerator JoinChannelDeathCo()
+  {
+    var t = _vivoxController.InitializeAsync();
+    yield return new WaitUntil(() => t.IsCompleted);
+
+    t = _vivoxController.LoginToVivoxAsync();
+    yield return new WaitUntil(() => t.IsCompleted);
+
+    t = _vivoxController.JoinChannelDeathAsync();
+    yield return new WaitUntil(() => t.IsCompleted);
+
+    //if (!_networkObject.IsOwnedByServer)
+    VivoxService.Instance.MuteInputDevice();
+  }
+
+
+  #endregion
+  #region Physics
 
   //
   void OnCollisionEnter(Collision collision)
@@ -635,24 +541,27 @@ public class PlayerController : NetworkBehaviour
         mine.Trigger();
 
         TakeDamage(_health);
+        ApplyBodyForce(new Vector3(0f, 1f, 0f) * 5f, HumanBodyBones.Hips);
         break;
 
     }
   }
 
-  //
-  void TakeDamage(int damage)
+  [Rpc(SendTo.Everyone)]
+  void ApplyBodyForceRpc(Vector3 applyForce, HumanBodyBones bodyBone)
   {
-
-    if (!_isAlive) return;
-    _health = Mathf.Clamp(_health - damage, 0, 100);
-
-    // Check dead
-    if (!_isAlive)
-    {
-      Die();
-    }
+    ApplyBodyForce(applyForce, bodyBone);
   }
+  void ApplyBodyForce(Vector3 applyForce, HumanBodyBones bodyBone)
+  {
+    if (_isAlive) return;
+
+    var bodyPart = _model._Animator.GetBoneTransform(bodyBone);
+    bodyPart.GetComponent<Rigidbody>().AddForce(applyForce * 500f);
+  }
+
+  #endregion
+  #region Animation
 
   //
   public void OnAnimationEvent(AnimationEvent animationEvent)
@@ -668,13 +577,19 @@ public class PlayerController : NetworkBehaviour
         break;
 
       case "punch":
-        Debug.Log(animationEvent.stringParameter);
+        if (IsLocalPlayer)
+          SimpleSpherecastToPlayer(0.1f, 1.8f, (playerData) =>
+          {
+            var player = playerData._Player;
+
+            player.TakeDamageRpc(50);
+            player.ApplyBodyForceRpc((player._model._Transform.position - _model._Transform.position).normalized * 1f, playerData._BodyBone);
+          });
+
         break;
 
       //
       case "endAnimation":
-        Debug.Log(animationEvent.stringParameter);
-
         EmoteEnd();
 
         break;
@@ -686,6 +601,59 @@ public class PlayerController : NetworkBehaviour
         break;
     }
   }
+
+  //
+
+  [Rpc(SendTo.Everyone)]
+  void EmoteRpc(int mode, string emoteName, bool cancelable)
+  {
+    switch (mode)
+    {
+
+      case 0:
+
+        EmoteStart(emoteName, cancelable);
+        break;
+      case 1:
+
+        EmoteEnd();
+        break;
+      case 2:
+
+        EmoteCancel();
+        break;
+
+    }
+  }
+  void EmoteStart(string emoteName, bool isCancelable)
+  {
+    _model.EmoteStart(emoteName, isCancelable);
+
+    _rb.isKinematic = true;
+  }
+  void EmoteEnd()
+  {
+    _model.EmoteEnd();
+
+    _rb.isKinematic = false;
+  }
+  void EmoteCancel()
+  {
+    _model.EmoteCancel();
+  }
+  void Emote(int index, bool cancelable)
+  {
+    EmoteRpc(0, $"Emote{index}", cancelable);
+  }
+
+  //
+  void Punch(Side side)
+  {
+    EmoteRpc(0, side == Side.LEFT ? "Punch_Left" : "Punch_Right", false);
+  }
+
+  #endregion
+  #region Spawning, Damage, and Death
 
   //
   [Rpc(SendTo.Server)]
@@ -707,7 +675,7 @@ public class PlayerController : NetworkBehaviour
 
     _rb.position = new Vector3(0f, 5f, 0f);
 
-    _model = new PlayerModelController();
+    _model = new HumanModelController();
     _model.SetArmWeight(0f, Side.LEFT);
     _model.SetArmWeight(0f, Side.RIGHT);
 
@@ -715,6 +683,28 @@ public class PlayerController : NetworkBehaviour
 
     if (IsLocalPlayer)
       JoinChannelLobby();
+  }
+
+  //
+  [Rpc(SendTo.Everyone)]
+  void TakeDamageRpc(int damage)
+  {
+    TakeDamage(damage);
+  }
+  void TakeDamage(int damage)
+  {
+
+    if (!_isAlive) return;
+    _health = Mathf.Clamp(_health - damage, 0, 100);
+
+    GameObject.Find("p0").transform.position = _model._Transform.position;
+    GameObject.Find("p0").GetComponent<ParticleSystem>().Play();
+
+    AudioManager.PlayAudio("grunt", _model._Transform.position);
+
+    // Check dead
+    if (!_isAlive)
+      Die();
   }
 
   //
@@ -737,10 +727,84 @@ public class PlayerController : NetworkBehaviour
       JoinChannelDeath();
   }
 
-  // Network helper functions
-  [Rpc(SendTo.Everyone)]
-  public void RequestSpawnPickupableRpc(ulong networkId, PickupableManager.PickupableType asType)
+  #endregion
+  #region Spherecast Tools
+
+  //
+  RaycastHit SimpleSpherecast(float radius)
   {
-    PickupableManager.RequestSpawnPickupableRpc(networkId, asType);
+    RaycastHit hit;
+    Physics.SphereCast(Camera.main.ScreenPointToRay(new Vector2(Screen.width / 2f, Screen.height / 2f)), radius, out hit);
+    return hit;
   }
+  void SimpleSpherecastAllOrdered(float radius, float distance, System.Action<RaycastHit[]> onSpherecast)
+  {
+    var hits = Physics.SphereCastAll(Camera.main.ScreenPointToRay(new Vector2(Screen.width / 2f, Screen.height / 2f)), radius, distance, LayerMask.GetMask(new string[] { "Default", "Visual", "Objects" }));
+    System.Array.Sort(hits, (x, y) => x.distance.CompareTo(y.distance));
+    onSpherecast?.Invoke(hits.Where((r) => r.distance != 0f).ToArray());
+  }
+  void SimpleSpherecastToPlayer(float radius, float distance, System.Action<PlayerWithBodyPart> onSpherecast)
+  {
+
+    SimpleSpherecastAllOrdered(0.1f, 1.8f, (hits) =>
+    {
+      foreach (var hit in hits)
+      {
+
+        //Debug.Log($"{hit.collider.name} .. {hit.distance}");
+
+        // Check if is player
+        var hitPlayerData = GetPlayerFromBodyPart(hit.collider.gameObject);
+        var hitPlayer = hitPlayerData._Player;
+        if (hitPlayer != null)
+        {
+          onSpherecast?.Invoke(hitPlayerData);
+        }
+
+        // Don't go through walls
+        break;
+      }
+    });
+  }
+  class PlayerWithBodyPart
+  {
+    public PlayerController _Player;
+    public HumanBodyBones _BodyBone;
+  }
+  static PlayerWithBodyPart GetPlayerFromBodyPart(GameObject gameObject)
+  {
+    foreach (var player in s_players)
+    {
+      var foundPlayer = player.IsSelf(gameObject);
+      if (foundPlayer != null)
+        return foundPlayer;
+    }
+
+    return null;
+  }
+  PlayerWithBodyPart IsSelf(GameObject gameObject)
+  {
+    foreach (var bodyPart in new HumanBodyBones[]{
+      HumanBodyBones.Head,
+      HumanBodyBones.Spine,
+      HumanBodyBones.Hips,
+      HumanBodyBones.LeftLowerArm,
+      HumanBodyBones.LeftUpperArm,
+      HumanBodyBones.RightLowerArm,
+      HumanBodyBones.RightUpperArm,
+      HumanBodyBones.LeftLowerLeg,
+      HumanBodyBones.LeftUpperLeg,
+      HumanBodyBones.RightLowerLeg,
+      HumanBodyBones.RightUpperLeg
+    })
+      if (_model._Animator.GetBoneTransform(bodyPart).gameObject.Equals(gameObject))
+        return new PlayerWithBodyPart()
+        {
+          _Player = this,
+          _BodyBone = bodyPart
+        };
+    return null;
+  }
+
+  #endregion
 }
