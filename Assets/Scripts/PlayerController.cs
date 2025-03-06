@@ -84,9 +84,9 @@ public class PlayerController : CustomNetworkController
       if (Input.GetKey(KeyCode.S))
         moveDir += -transform.forward;
       moveDir = moveDir.normalized;
-      if (_model._IsTakingLongAction)
+      if (_model._IsAnimating)
       {
-        if (_model._IsLongActionCancelable && moveDir.magnitude > 0.25f)
+        if (_model._IsAnimationCancelable && moveDir.magnitude > 0.25f)
           EmoteRpc(2, "", false);
 
         _moveDirection = Vector3.zero;
@@ -164,7 +164,7 @@ public class PlayerController : CustomNetworkController
       }
 
       //
-      if (!_model._IsTakingLongAction)
+      if (!_model._IsAnimating)
       {
 
         // Either clicked on empty space, or clicked and there was nothing to interact with
@@ -196,7 +196,9 @@ public class PlayerController : CustomNetworkController
         PickupableManager.SpawnPickupable(new Vector3(2.2f, 11f, 0f), PickupableManager.PickupableType.BANANA);
       }
       if (Input.GetKeyDown(KeyCode.U))
-        SimpleTrapManager.SpawnTrap(SimpleTrapManager.TrapType.CAR, new Vector3(-30f, 1.2f, 0f));
+        SpawnSimpleTrap(SimpleTrapManager.TrapType.CAR, new Vector3(-30f, 1.2f, -15f));
+      if (Input.GetKeyDown(KeyCode.Y))
+        ActivateSimpleTrap(0);
     }
     else
     {
@@ -247,7 +249,7 @@ public class PlayerController : CustomNetworkController
     {
 
       // Set spine tilt
-      var canSetSpineTilt = !_model._IsTakingLongAction || !_model._IsLongActionCancelable || (_model._Animator.GetCurrentAnimatorClipInfo(3).Length > 0 && _model._Animator.GetCurrentAnimatorClipInfo(3)[0].clip.isLooping);
+      var canSetSpineTilt = !_model._IsAnimating || !_model._IsAnimationCancelable || (_model._Animator.GetCurrentAnimatorClipInfo(3).Length > 0 && _model._Animator.GetCurrentAnimatorClipInfo(3)[0].clip.isLooping);
       if (canSetSpineTilt)
         _model.SetSpineTilt(Mathf.Lerp(70f, -70f, (_lookRotX.Value + 2f) / 4f));
 
@@ -497,13 +499,37 @@ public class PlayerController : CustomNetworkController
   #region Physics
 
   //
-  void OnCollisionEnter(Collision collision)
+  void OnCollisionStay(Collision collision)
   {
     //Debug.Log($"{collision.collider.name} {collision.collider.isTrigger}");
+
+    //
+    if (!_isAlive) return;
+    if (!IsLocalPlayer) return;
+
+    //
+    switch (collision.collider.name)
+    {
+
+      case "Car":
+
+        SimpleTrapManager.GetSimpleTrapFromCollider(collision.collider, (trap) =>
+        {
+          var carTrap = trap as CarTrap;
+          carTrap.HandlePlayerCollision(this);
+        });
+
+        break;
+
+    }
   }
   void OnTriggerEnter(Collider other)
   {
 
+    //
+    if (!_isAlive) return;
+
+    //
     var obj = other.gameObject;
     var name = other.name;
     if (name == "Mesh")
@@ -547,8 +573,9 @@ public class PlayerController : CustomNetworkController
     }
   }
 
+  // Apply physics force to player if not alive; use this to affect body after death (ex; explosion force)
   [Rpc(SendTo.Everyone)]
-  void ApplyBodyForceRpc(Vector3 applyForce, HumanBodyBones bodyBone)
+  public void ApplyBodyForceRpc(Vector3 applyForce, HumanBodyBones bodyBone)
   {
     ApplyBodyForce(applyForce, bodyBone);
   }
@@ -687,7 +714,7 @@ public class PlayerController : CustomNetworkController
 
   //
   [Rpc(SendTo.Everyone)]
-  void TakeDamageRpc(int damage)
+  public void TakeDamageRpc(int damage)
   {
     TakeDamage(damage);
   }
@@ -746,7 +773,7 @@ public class PlayerController : CustomNetworkController
   void SimpleSpherecastToPlayer(float radius, float distance, System.Action<PlayerWithBodyPart> onSpherecast)
   {
 
-    SimpleSpherecastAllOrdered(0.1f, 1.8f, (hits) =>
+    SimpleSpherecastAllOrdered(radius, distance, (hits) =>
     {
       foreach (var hit in hits)
       {
@@ -755,8 +782,7 @@ public class PlayerController : CustomNetworkController
 
         // Check if is player
         var hitPlayerData = GetPlayerFromBodyPart(hit.collider.gameObject);
-        var hitPlayer = hitPlayerData._Player;
-        if (hitPlayer != null)
+        if (hitPlayerData != null)
         {
           onSpherecast?.Invoke(hitPlayerData);
         }
@@ -804,6 +830,33 @@ public class PlayerController : CustomNetworkController
           _BodyBone = bodyPart
         };
     return null;
+  }
+
+  #endregion
+  #region RPC Wrappers
+
+  [Rpc(SendTo.Everyone)]
+  void SpawnSimpleTrapRPC(SimpleTrapManager.TrapType trapType, Vector3 atPosition)
+  {
+    SimpleTrapManager.SpawnTrap(trapType, atPosition);
+  }
+  public static void SpawnSimpleTrap(SimpleTrapManager.TrapType trapType, Vector3 atPosition)
+  {
+    s_LocalPlayer.SpawnSimpleTrapRPC(trapType, atPosition);
+  }
+
+  [Rpc(SendTo.Everyone)]
+  void ActivateSimpleTrapRPC(int trapId)
+  {
+    SimpleTrapManager.ActivateTrapById(trapId);
+  }
+  public static void ActivateSimpleTrap(SimpleTrap simpleTrap)
+  {
+    s_LocalPlayer.ActivateSimpleTrapRPC(simpleTrap._Id);
+  }
+  public static void ActivateSimpleTrap(int trapId)
+  {
+    s_LocalPlayer.ActivateSimpleTrapRPC(trapId);
   }
 
   #endregion

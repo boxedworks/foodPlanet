@@ -8,14 +8,14 @@ public class HumanModelController
   Transform _model, _spine, _head;
   public Transform _Transform { get { return _head; } }
 
-  public float _FullBodyWeight { get { return _desiredFullBodyWeight; } set { _desiredFullBodyWeight = value; } }
   float _desiredFullBodyWeight, _fullBodyWeight;
 
   float _moveSpeed;
 
-  public bool _IsTakingLongAction { get { return _isTakingLongAction; } }
-  public bool _IsLongActionCancelable { get { return _isLongActionCancelable; } }
-  bool _isTakingLongAction, _isLongActionCancelable;
+  public bool _IsAnimating { get { return _isAnimating; } }
+  public bool _IsAnimationCancelable { get { return _isAnimationCancelable && Time.time - _animationStartTime > 0.25f; } }
+  bool _isAnimating, _isAnimationCancelable;
+  float _animationStartTime;
 
   //
   public HumanModelController()
@@ -33,7 +33,7 @@ public class HumanModelController
   {
 
     // Stop move speed
-    if (_isTakingLongAction)
+    if (_isAnimating)
     {
       _moveSpeed += (0f - _moveSpeed) * Time.deltaTime * 5f;
     }
@@ -68,10 +68,12 @@ public class HumanModelController
   //
   public void EmoteStart(string emoteName, bool isCancelable)
   {
-    _isTakingLongAction = true;
-    _isLongActionCancelable = isCancelable;
+    _isAnimating = true;
+    _isAnimationCancelable = isCancelable;
 
-    _FullBodyWeight = 1f;
+    _animationStartTime = Time.time;
+
+    _desiredFullBodyWeight = 1f;
 
     _Animator.applyRootMotion = true;
 
@@ -80,9 +82,11 @@ public class HumanModelController
   }
   public void EmoteEnd()
   {
-    _isTakingLongAction = false;
+    _isAnimating = false;
 
-    _FullBodyWeight = 0f;
+    _animationStartTime = -1f;
+
+    _desiredFullBodyWeight = 0f;
 
     _Animator.applyRootMotion = false;
   }

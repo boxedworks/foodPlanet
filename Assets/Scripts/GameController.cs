@@ -25,6 +25,7 @@ class GameController : MonoBehaviour
   {
     PickupableManager.s_Singleton?.Update();
     AudioManager.Update();
+    SimpleTrapManager.Update();
   }
 
   //

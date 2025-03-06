@@ -37,11 +37,11 @@ public class CustomNetworkController : NetworkBehaviour
       {
 
         // If animating, move controller with model
-        if (_model._IsTakingLongAction)
+        if (_model._IsAnimating)
         {
           var pos = _model._Animator.GetBoneTransform(HumanBodyBones.Hips).position;
           pos.y = _rb.position.y;
-          _rb.MovePosition(pos);
+          _rb.position = pos;
         }
 
         // Move player rb
