@@ -11,6 +11,7 @@ public class CustomNetworkController : NetworkBehaviour
   protected Collider _collider;
   protected Rigidbody _rb;
   protected Vector3 _moveDirection;
+  protected bool _isRunning;
 
   protected HumanModelController _model;
 
@@ -47,7 +48,7 @@ public class CustomNetworkController : NetworkBehaviour
         // Move player rb
         else if (_moveDirection.magnitude > 0f)
         {
-          var moveSpeed = 8f;
+          var moveSpeed = _isRunning ? 8f : 3f;
           var movePosition = _rb.position + _moveDirection * Time.fixedDeltaTime * moveSpeed;
           _rb.MovePosition(movePosition);
         }

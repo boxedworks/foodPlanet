@@ -94,6 +94,10 @@ public class PlayerController : CustomNetworkController
       else
         _moveDirection = moveDir;
 
+      // Check running
+      _isRunning = Input.GetKey(KeyCode.LeftShift);
+
+      //
       var leftClick = Input.GetMouseButtonDown(0);
       var rightClick = Input.GetMouseButtonDown(1);
 
@@ -501,14 +505,19 @@ public class PlayerController : CustomNetworkController
   //
   void OnCollisionStay(Collision collision)
   {
-    //Debug.Log($"{collision.collider.name} {collision.collider.isTrigger}");
+    //Debug.Log($"{collision.gameObject.name} {collision.collider.isTrigger}");
 
     //
     if (!_isAlive) return;
     if (!IsLocalPlayer) return;
 
     //
-    switch (collision.collider.name)
+    var obj = collision.gameObject;
+    if (obj.name == "Mesh")
+      obj = collision.gameObject.transform.parent.gameObject;
+
+    //
+    switch (obj.name)
     {
 
       case "Car":
@@ -523,20 +532,16 @@ public class PlayerController : CustomNetworkController
 
     }
   }
-  void OnTriggerEnter(Collider other)
+  void OnTriggerEnter(Collider collider)
   {
 
     //
     if (!_isAlive) return;
 
     //
-    var obj = other.gameObject;
-    var name = other.name;
-    if (name == "Mesh")
-    {
-      obj = other.transform.parent.gameObject;
-      name = obj.name;
-    }
+    var obj = collider.gameObject;
+    if (obj.name == "Mesh")
+      obj = collider.transform.parent.gameObject;
 
     // Check network collision
     var networkObj = obj.GetComponent<NetworkObject>();
@@ -605,12 +610,19 @@ public class PlayerController : CustomNetworkController
 
       case "punch":
         if (IsLocalPlayer)
-          SimpleSpherecastToPlayer(0.1f, 1.8f, (playerData) =>
+          SimpleSpherecastToPlayer(0.1f, 1.8f,
+          (playerData) =>
           {
             var player = playerData._Player;
 
             player.TakeDamageRpc(50);
             player.ApplyBodyForceRpc((player._model._Transform.position - _model._Transform.position).normalized * 1f, playerData._BodyBone);
+          },
+
+          (rayCastHit) =>
+          {
+            GameObject.Find("p1").transform.position = rayCastHit.point;
+            GameObject.Find("p1").GetComponent<ParticleSystem>().Play();
           });
 
         break;
@@ -724,10 +736,8 @@ public class PlayerController : CustomNetworkController
     if (!_isAlive) return;
     _health = Mathf.Clamp(_health - damage, 0, 100);
 
-    GameObject.Find("p0").transform.position = _model._Transform.position;
-    GameObject.Find("p0").GetComponent<ParticleSystem>().Play();
-
-    AudioManager.PlayAudio("grunt", _model._Transform.position);
+    // Fx
+    EffectManager.PlayEffectAt(EffectManager.EffectType.BLOOD_SPURT, _model._Transform.position);
 
     // Check dead
     if (!_isAlive)
@@ -770,7 +780,7 @@ public class PlayerController : CustomNetworkController
     System.Array.Sort(hits, (x, y) => x.distance.CompareTo(y.distance));
     onSpherecast?.Invoke(hits.Where((r) => r.distance != 0f).ToArray());
   }
-  void SimpleSpherecastToPlayer(float radius, float distance, System.Action<PlayerWithBodyPart> onSpherecast)
+  void SimpleSpherecastToPlayer(float radius, float distance, System.Action<PlayerWithBodyPart> onSpherecast, System.Action<RaycastHit> onNonPlayer = null)
   {
 
     SimpleSpherecastAllOrdered(radius, distance, (hits) =>
@@ -783,9 +793,9 @@ public class PlayerController : CustomNetworkController
         // Check if is player
         var hitPlayerData = GetPlayerFromBodyPart(hit.collider.gameObject);
         if (hitPlayerData != null)
-        {
           onSpherecast?.Invoke(hitPlayerData);
-        }
+        else
+          onNonPlayer?.Invoke(hit);
 
         // Don't go through walls
         break;

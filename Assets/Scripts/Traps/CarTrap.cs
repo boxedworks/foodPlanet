@@ -2,44 +2,6 @@
 using UnityEngine;
 using TrapType = SimpleTrapManager.TrapType;
 
-//
-public class SimpleTrap
-{
-
-  public int _Id;
-  public TrapType _TrapType;
-  protected Vector3 _position;
-
-  Collider _collider;
-
-  public SimpleTrap(TrapType trapType, Vector3 atPos)
-  {
-    _TrapType = trapType;
-
-    _position = atPos;
-  }
-
-  public virtual void Update()
-  {
-
-  }
-
-  public virtual void Activate()
-  {
-
-  }
-
-  protected void SetCollider(Collider c)
-  {
-    _collider = c;
-  }
-  public bool IsTrap(Collider c)
-  {
-    return _collider.Equals(c);
-  }
-
-}
-
 public class CarTrap : SimpleTrap
 {
 
@@ -55,10 +17,12 @@ public class CarTrap : SimpleTrap
     var carModel = GameObject.Find("Car");
     _model = GameObject.Instantiate(carModel);
     _model.name = carModel.name;
-    SetCollider(_model.GetComponent<Collider>());
+    SetCollider(_model.transform.GetChild(0).GetComponent<Collider>());
 
     _model.transform.position = atPos;
     _moveDirection = moveDirection;
+
+    _model.transform.LookAt(atPos + _moveDirection * 10f);
 
     _activateTime = 1f;
   }
@@ -73,7 +37,7 @@ public class CarTrap : SimpleTrap
   {
     if (_activateTime < 1f)
     {
-      _activateTime = Mathf.Clamp(_activateTime + Time.deltaTime * 0.5f, 0f, 1f);
+      _activateTime = Mathf.Clamp(_activateTime + Time.deltaTime * 1f, 0f, 1f);
       _model.GetComponent<Rigidbody>().MovePosition(_position + _moveDirection * _activateTime * 30f);
     }
   }
