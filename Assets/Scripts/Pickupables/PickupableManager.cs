@@ -57,5 +57,7 @@ public class PickupableManager
 
     model.name = asType.ToString();
     model.transform.parent.name = "Pickupable";
+
+    s_Singleton._pickups.Add(obj.gameObject);
   }
 }

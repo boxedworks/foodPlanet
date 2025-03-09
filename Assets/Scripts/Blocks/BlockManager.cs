@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-class BlockManager
+public class BlockManager
 {
 
   public static BlockManager s_Singleton;
@@ -12,62 +12,11 @@ class BlockManager
     NONE,
 
     COUNTER,
+
+    DOOR,
   }
   List<Block> _blocks;
   Dictionary<BlockType, List<Block>> _blocksByType;
-
-  public class Block
-  {
-    public static int s_Id;
-    public int _Id;
-
-    public BlockType _Type;
-
-    protected GameObject _gameObject;
-    public Block(BlockType blockType, GameObject gameObject)
-    {
-      _Id = s_Id++;
-      _Type = blockType;
-
-      _gameObject = gameObject;
-    }
-
-    //
-    public bool Equals(GameObject gameObject)
-    {
-      return _gameObject.Equals(gameObject);
-    }
-  }
-
-  //
-  public class CounterBlock : Block
-  {
-
-    GameObject _heldObject;
-    public bool _HasObject { get { return _heldObject != null; } }
-
-    public CounterBlock(GameObject gameObject) : base(BlockType.COUNTER, gameObject)
-    {
-
-    }
-
-    //
-    public void SetObject(GameObject gameObject)
-    {
-      _heldObject = gameObject;
-      _heldObject.transform.position = _gameObject.transform.position + new Vector3(0f, 2f, 0f);
-    }
-    public void UnsetObject()
-    {
-      _heldObject = null;
-    }
-
-    public bool HasThisObject(GameObject gameObject)
-    {
-      if (!_HasObject) return false;
-      return _heldObject.Equals(gameObject);
-    }
-  }
 
   //
   public BlockManager()

@@ -15,6 +15,7 @@ public class SimpleTrapManager
     NONE,
 
     CAR,
+    DOOR,
   }
 
   //
@@ -25,6 +26,12 @@ public class SimpleTrapManager
 
     _traps = new();
   }
+  public static void Cleanup()
+  {
+    foreach (var trap in s_Singleton._traps)
+      trap.Value.Destroy();
+    s_Singleton._traps = new();
+  }
 
   //
   public static void Update()
@@ -33,6 +40,14 @@ public class SimpleTrapManager
     {
       var trap = trapPair.Value;
       trap.Update();
+    }
+  }
+  public static void FixedUpdate()
+  {
+    foreach (var trapPair in s_Singleton._traps)
+    {
+      var trap = trapPair.Value;
+      trap.FixedUpdate();
     }
   }
 
@@ -55,9 +70,29 @@ public class SimpleTrapManager
   //
   public static SimpleTrap SpawnTrap(TrapType trapType, Vector3 atPosition)
   {
-    var newTrap = new CarTrap(atPosition, new Vector3(0f, 0f, 1f));
-    newTrap._Id = s_Id++;
+    SimpleTrap newTrap;
+    switch (trapType)
+    {
 
+      case TrapType.CAR:
+
+        newTrap = new CarTrap(atPosition, new Vector3(0f, 0f, 1f));
+        break;
+
+      case TrapType.DOOR:
+
+        newTrap = new DoorTrap(atPosition, new Vector3(1f, 0f, 0f));
+        break;
+
+
+      default:
+
+        Debug.LogWarning($"Unhandle trap type: {trapType}");
+        return null;
+
+    }
+
+    newTrap._Id = s_Id++;
     s_Singleton._traps.Add(newTrap._Id, newTrap);
 
     //

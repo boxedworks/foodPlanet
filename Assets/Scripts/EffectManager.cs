@@ -50,8 +50,8 @@ public class EffectManager
     _effects = new();
     _effects.Add(EffectType.BLOOD_SPURT, new()
     {
-      _Particles = GameObject.Find("p0").GetComponent<ParticleSystem>(),
-      _AudioPath = "grunt"
+      _Particles = GameObject.Find("particles_blood").GetComponent<ParticleSystem>(),
+      _AudioPath = "blood"
     });
   }
 

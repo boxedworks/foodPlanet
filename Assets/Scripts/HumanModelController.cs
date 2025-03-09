@@ -51,14 +51,13 @@ public class HumanModelController
       _model.position = new Vector3(_model.position.x, targetPosition.y, _model.position.z);
 
       _moveSpeed += (moveSpeed - _moveSpeed) * Time.deltaTime * 5f;
-
     }
 
     // Set rotation
     _model.rotation = transform.rotation;
 
     // Update animator value
-    _animator.SetFloat("MoveSpeed", _moveSpeed);
+    _animator.SetFloat("MoveSpeedY", _moveSpeed);
 
     // Lerp 4th layer weight
     _fullBodyWeight += (_desiredFullBodyWeight - _fullBodyWeight) * Time.deltaTime * 5f;

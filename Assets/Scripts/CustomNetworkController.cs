@@ -10,6 +10,8 @@ public class CustomNetworkController : NetworkBehaviour
 
   protected Collider _collider;
   protected Rigidbody _rb;
+  public Rigidbody _Rb { get { return _rb; } }
+
   protected Vector3 _moveDirection;
   protected bool _isRunning;
 

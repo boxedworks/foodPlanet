@@ -19,6 +19,7 @@ class GameController : MonoBehaviour
     new BlockManager();
     new AudioManager();
     new SimpleTrapManager();
+    new EffectManager();
   }
 
   void Update()
@@ -26,6 +27,10 @@ class GameController : MonoBehaviour
     PickupableManager.s_Singleton?.Update();
     AudioManager.Update();
     SimpleTrapManager.Update();
+  }
+  void FixedUpdate()
+  {
+    SimpleTrapManager.FixedUpdate();
   }
 
   //

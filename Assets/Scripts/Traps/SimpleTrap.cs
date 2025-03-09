@@ -18,8 +18,17 @@ public class SimpleTrap
 
     _position = atPos;
   }
+  public virtual void Destroy()
+  {
+    _collider = null;
+  }
 
   public virtual void Update()
+  {
+
+  }
+
+  public virtual void FixedUpdate()
   {
 
   }
@@ -27,6 +36,10 @@ public class SimpleTrap
   public virtual void Activate()
   {
 
+  }
+  public void ActivateRpc()
+  {
+    PlayerController.ActivateSimpleTrap(_Id);
   }
 
   protected void SetCollider(Collider c)

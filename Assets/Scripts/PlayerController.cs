@@ -103,7 +103,7 @@ public class PlayerController : CustomNetworkController
 
       var emptyInteract = false;
 
-      var hit = SimpleSpherecast(0.1f);
+      var hit = SimpleSpherecast(0.1f, 10f);
       if (hit.collider != null)
       {
 
@@ -121,7 +121,7 @@ public class PlayerController : CustomNetworkController
               {
 
                 // Get counter block
-                var counterBlock = BlockManager.GetBlock(BlockManager.BlockType.COUNTER, hit.collider.gameObject) as BlockManager.CounterBlock;
+                var counterBlock = BlockManager.GetBlock(BlockManager.BlockType.COUNTER, hit.collider.gameObject) as CounterBlock;
                 if (counterBlock != null)
                 {
 
@@ -136,15 +136,24 @@ public class PlayerController : CustomNetworkController
 
                     NetworkObjectWithBlockRpc(networkId, counterBlock._Id);
                   }
-
                 }
               }
             }
             else
             {
+
               var pickupable = hit.transform.gameObject;
+              var counterBlock = BlockManager.GetBlock(BlockManager.BlockType.COUNTER, hit.collider.gameObject) as CounterBlock;
+
+              // Check pickupable
               if (pickupable.name.Equals("Pickupable"))
                 GrabObject(pickupable.GetComponent<NetworkObject>(), side);
+
+              // Check counter
+              else if (counterBlock != null)
+                BlockRpc(counterBlock._Id, side);
+
+              //
               else
                 emptyInteract = true;
             }
@@ -200,9 +209,14 @@ public class PlayerController : CustomNetworkController
         PickupableManager.SpawnPickupable(new Vector3(2.2f, 11f, 0f), PickupableManager.PickupableType.BANANA);
       }
       if (Input.GetKeyDown(KeyCode.U))
-        SpawnSimpleTrap(SimpleTrapManager.TrapType.CAR, new Vector3(-30f, 1.2f, -15f));
-      if (Input.GetKeyDown(KeyCode.Y))
-        ActivateSimpleTrap(0);
+      {
+        SpawnSimpleTrap(SimpleTrapManager.TrapType.CAR, new Vector3(-25f, 1.2f, -25f));
+        SpawnSimpleTrap(SimpleTrapManager.TrapType.DOOR, new Vector3(-28.6f, 1.5f, 0f));
+      }
+      if (Input.GetKeyDown(KeyCode.T))
+      {
+        SimpleTrapManager.Cleanup();
+      }
     }
     else
     {
@@ -333,7 +347,7 @@ public class PlayerController : CustomNetworkController
     }
 
     // Check counters
-    foreach (BlockManager.CounterBlock counter in BlockManager.GetBlocksByType(BlockManager.BlockType.COUNTER))
+    foreach (CounterBlock counter in BlockManager.GetBlocksByType(BlockManager.BlockType.COUNTER))
     {
 
       if (!counter._HasObject) continue;
@@ -416,7 +430,7 @@ public class PlayerController : CustomNetworkController
 
       case BlockManager.BlockType.COUNTER:
 
-        var counter = block as BlockManager.CounterBlock;
+        var counter = block as CounterBlock;
         if (!counter._HasObject)
         {
           counter.SetObject(obj.gameObject);
@@ -428,7 +442,7 @@ public class PlayerController : CustomNetworkController
 
   }
   [Rpc(SendTo.Everyone)]
-  void BlockRpc(int blockId)
+  void BlockRpc(int blockId, Side side)
   {
 
     // Get block
@@ -440,10 +454,10 @@ public class PlayerController : CustomNetworkController
 
       case BlockManager.BlockType.COUNTER:
 
-        var counter = block as BlockManager.CounterBlock;
-        if (!counter._HasObject)
+        var counter = block as CounterBlock;
+        if (counter._HasObject)
         {
-          counter.UnsetObject();
+          GrabObjectRpc(counter._HeldObjectId, side);
         }
 
         break;
@@ -768,10 +782,10 @@ public class PlayerController : CustomNetworkController
   #region Spherecast Tools
 
   //
-  RaycastHit SimpleSpherecast(float radius)
+  RaycastHit SimpleSpherecast(float radius, float distance)
   {
     RaycastHit hit;
-    Physics.SphereCast(Camera.main.ScreenPointToRay(new Vector2(Screen.width / 2f, Screen.height / 2f)), radius, out hit);
+    Physics.SphereCast(Camera.main.ScreenPointToRay(new Vector2(Screen.width / 2f, Screen.height / 2f)), radius, out hit, distance);
     return hit;
   }
   void SimpleSpherecastAllOrdered(float radius, float distance, System.Action<RaycastHit[]> onSpherecast)
