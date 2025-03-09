@@ -45,19 +45,39 @@ public class PickupableManager
     return instance;
   }
 
+  public static PickupableType GetPickupableType(GameObject pickupable)
+  {
+    return System.Enum.Parse<PickupableType>(pickupable.transform.GetChild(0).gameObject.name, true);
+  }
+
+  static void SetPickupableModel(GameObject networkObject, PickupableType ofType)
+  {
+    var model = GameObject.Instantiate(Resources.Load($"Pickupables/{ofType}"), GameController.s_Game) as GameObject;
+    model.transform.parent = networkObject.transform;
+    model.transform.localPosition = Vector3.zero;
+    model.transform.rotation = Quaternion.identity;
+
+    model.name = ofType.ToString();
+  }
+
   public static void RequestSpawnPickupableRpc(ulong networkId, PickupableType asType)
   {
 
     var obj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[networkId];
+    obj.gameObject.name = "Pickupable";
 
-    var model = GameObject.Instantiate(Resources.Load($"Pickupables/{asType}"), GameController.s_Game) as GameObject;
-    model.transform.parent = obj.transform;
-    model.transform.localPosition = Vector3.zero;
-    model.transform.rotation = Quaternion.identity;
-
-    model.name = asType.ToString();
-    model.transform.parent.name = "Pickupable";
+    SetPickupableModel(obj.gameObject, asType);
 
     s_Singleton._pickups.Add(obj.gameObject);
+  }
+
+  public static void RequestChangePickupableToRpc(ulong networkId, PickupableType toType)
+  {
+
+    var obj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[networkId];
+
+    GameObject.Destroy(obj.transform.GetChild(0).gameObject);
+
+    SetPickupableModel(obj.gameObject, toType);
   }
 }

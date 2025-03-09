@@ -17,5 +17,10 @@ public class NetworkTools : NetworkBehaviour
   {
     PickupableManager.RequestSpawnPickupableRpc(networkId, asType);
   }
+  [Rpc(SendTo.Everyone)]
+  public void RequestChangePickupableRpc(ulong networkId, PickupableManager.PickupableType toType)
+  {
+    PickupableManager.RequestChangePickupableToRpc(networkId, toType);
+  }
 
 }

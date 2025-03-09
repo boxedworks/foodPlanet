@@ -12,6 +12,7 @@ public class BlockManager
     NONE,
 
     COUNTER,
+    STOVE,
 
     DOOR,
   }

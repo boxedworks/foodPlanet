@@ -3,13 +3,13 @@ using UnityEngine;
 using BlockType = BlockManager.BlockType;
 
 //
-public class CounterBlock : Block
+public class StoveBlock : Block
 {
 
   GameObject _heldObject;
   public bool _HasObject { get { return _heldObject != null; } }
 
-  public CounterBlock(GameObject gameObject) : base(BlockType.COUNTER, gameObject)
+  public StoveBlock(GameObject gameObject) : base(BlockType.COUNTER, gameObject)
   {
 
   }

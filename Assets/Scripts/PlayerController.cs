@@ -369,8 +369,6 @@ public class PlayerController : CustomNetworkController
     transformObj.SyncPositionY = false;
     transformObj.SyncPositionZ = false;
 
-    Debug.Log("Grab");
-
     _model.SetArmWeight(1f, side);
     AudioManager.PlayAudio("pickup_object", _model._Transform.position);
   }
@@ -472,6 +470,11 @@ public class PlayerController : CustomNetworkController
   {
     PickupableManager.RequestSpawnPickupableRpc(networkId, asType);
   }
+  [Rpc(SendTo.Everyone)]
+  public void RequestChangePickupableRpc(ulong networkId, PickupableManager.PickupableType toType)
+  {
+    PickupableManager.RequestChangePickupableToRpc(networkId, toType);
+  }
 
   #region Vivox
 
@@ -519,7 +522,6 @@ public class PlayerController : CustomNetworkController
   //
   void OnCollisionStay(Collision collision)
   {
-    //Debug.Log($"{collision.gameObject.name} {collision.collider.isTrigger}");
 
     //
     if (!_isAlive) return;
@@ -801,8 +803,6 @@ public class PlayerController : CustomNetworkController
     {
       foreach (var hit in hits)
       {
-
-        //Debug.Log($"{hit.collider.name} .. {hit.distance}");
 
         // Check if is player
         var hitPlayerData = GetPlayerFromBodyPart(hit.collider.gameObject);
