@@ -40,6 +40,12 @@ public class BlockManager
       switch (block.name)
       {
 
+        case "Stove":
+          blockType = BlockType.STOVE;
+
+          newBlock = new StoveBlock(block.gameObject);
+          break;
+
         default://case "Counter":
           blockType = BlockType.COUNTER;
 
@@ -55,6 +61,13 @@ public class BlockManager
       _blocks.Add(newBlock);
       _blocksByType[blockType].Add(newBlock);
     }
+  }
+
+  //
+  public static void Update()
+  {
+    foreach (var block in s_Singleton._blocks)
+      block.Update();
   }
 
   //

@@ -18,6 +18,9 @@ public class Block
   }
 
   //
+  public virtual void Update() { }
+
+  //
   public bool Equals(GameObject gameObject)
   {
     return _gameObject.Equals(gameObject);

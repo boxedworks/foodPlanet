@@ -8,12 +8,14 @@ public class EffectManager
   public static EffectManager s_Singleton;
 
   //
-  class EffectPair
+  public class EffectPair
   {
 
     //
     public ParticleSystem _Particles;
     public string _AudioPath;
+
+    public AudioSource _AudioSource;
 
     //
     public void Play(Vector3 atPosition)
@@ -28,7 +30,9 @@ public class EffectManager
 
       //
       if (_AudioPath != null)
-        AudioManager.PlayAudio(_AudioPath, atPosition);
+        _AudioSource = AudioManager.PlayAudio(_AudioPath, atPosition);
+      else
+        _AudioSource = null;
     }
   }
 
@@ -39,6 +43,8 @@ public class EffectManager
 
     BLOOD_SPURT,
 
+    GRILL_SIZZLE,
+
   }
   Dictionary<EffectType, EffectPair> _effects;
 
@@ -48,16 +54,25 @@ public class EffectManager
     s_Singleton = this;
 
     _effects = new();
+
     _effects.Add(EffectType.BLOOD_SPURT, new()
     {
       _Particles = GameObject.Find("particles_blood").GetComponent<ParticleSystem>(),
       _AudioPath = "blood"
     });
+
+    _effects.Add(EffectType.GRILL_SIZZLE, new()
+    {
+      //_Particles = GameObject.Find("particles_blood").GetComponent<ParticleSystem>(),
+      _AudioPath = "sizzle"
+    });
   }
 
-  public static void PlayEffectAt(EffectType effectType, Vector3 atPosition)
+  public static EffectPair PlayEffectAt(EffectType effectType, Vector3 atPosition)
   {
-    s_Singleton._effects[effectType].Play(atPosition);
+    var effectPair = s_Singleton._effects[effectType];
+    effectPair.Play(atPosition);
+    return effectPair;
   }
 
 

@@ -6,38 +6,74 @@ using BlockType = BlockManager.BlockType;
 public class StoveBlock : Block
 {
 
-  GameObject _heldObject;
-  public bool _HasObject { get { return _heldObject != null; } }
+  PickupableSlot _slot;
+  public bool _HasObject { get { return _slot._HasObject; } }
+  public ulong _HeldObjectId { get { return _slot._Pickupable._NetworkObject.NetworkObjectId; } }
 
-  public StoveBlock(GameObject gameObject) : base(BlockType.COUNTER, gameObject)
+  EffectManager.EffectPair _effect;
+
+  float _setTimer;
+
+  public StoveBlock(GameObject gameObject) : base(BlockType.STOVE, gameObject)
   {
+    _slot = new();
+  }
+
+  //
+  public void Set(Pickupable pickupable)
+  {
+    _slot.Set(pickupable);
+    _slot._Pickupable._GameObject.transform.position = _gameObject.transform.position + new Vector3(0f, 2f, 0f);
+
+    _setTimer = Time.time;
+  }
+  public void Unset()
+  {
+    _slot.Unset();
+  }
+
+  //
+  public override void Update()
+  {
+
+    //
+    if (NetworkManager.Singleton?.IsServer ?? false)
+    {
+
+      if (_slot._HasObject)
+        if (_slot._Pickupable._Type == PickupableManager.PickupableType.APPLE)
+        {
+          if (Time.time - _setTimer > 3f)
+            PlayerController.s_LocalPlayer.RequestChangePickupableRpc(_slot._Pickupable._NetworkObject.NetworkObjectId, PickupableManager.PickupableType.BANANA);
+        }
+    }
+
+    // Fx
+    if (_slot._HasObject)
+    {
+      if (_effect == null)
+      {
+        _effect = EffectManager.PlayEffectAt(EffectManager.EffectType.GRILL_SIZZLE, _gameObject.transform.position);
+        _effect._AudioSource.loop = true;
+      }
+    }
+    else
+    {
+      if (_effect != null)
+      {
+        _effect._AudioSource.Stop();
+        _effect._AudioSource.loop = false;
+
+        _effect = null;
+      }
+    }
 
   }
 
   //
-  public void SetObject(GameObject gameObject)
-  {
-    _heldObject = gameObject;
-    _heldObject.transform.position = _gameObject.transform.position + new Vector3(0f, 2f, 0f);
-
-    //
-    if (NetworkManager.Singleton.IsServer)
-    {
-      var networkObj = _heldObject.GetComponent<NetworkObject>();
-      var pickupType = PickupableManager.GetPickupableType(networkObj.gameObject);
-      PlayerController.s_LocalPlayer.RequestChangePickupableRpc(networkObj.NetworkObjectId, pickupType == PickupableManager.PickupableType.APPLE ? PickupableManager.PickupableType.BANANA : PickupableManager.PickupableType.APPLE);
-    }
-  }
-  public void UnsetObject()
-  {
-    _heldObject = null;
-  }
-
-  public ulong _HeldObjectId { get { return _heldObject.GetComponent<NetworkObject>().NetworkObjectId; } }
-
-  public bool HasThisObject(GameObject gameObject)
+  public bool HasThisObject(Pickupable pickupable)
   {
     if (!_HasObject) return false;
-    return _heldObject.Equals(gameObject);
+    return _slot._Pickupable.Equals(pickupable);
   }
 }

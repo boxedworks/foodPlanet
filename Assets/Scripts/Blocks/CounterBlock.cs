@@ -6,38 +6,29 @@ using BlockType = BlockManager.BlockType;
 public class CounterBlock : Block
 {
 
-  GameObject _heldObject;
-  public bool _HasObject { get { return _heldObject != null; } }
+  PickupableSlot _slot;
+  public bool _HasObject { get { return _slot._HasObject; } }
+  public ulong _HeldObjectId { get { return _slot._Pickupable._NetworkObject.NetworkObjectId; } }
 
   public CounterBlock(GameObject gameObject) : base(BlockType.COUNTER, gameObject)
   {
-
+    _slot = new();
   }
 
   //
-  public void SetObject(GameObject gameObject)
+  public void Set(Pickupable pickupable)
   {
-    _heldObject = gameObject;
-    _heldObject.transform.position = _gameObject.transform.position + new Vector3(0f, 2f, 0f);
-
-    //
-    if (NetworkManager.Singleton.IsServer)
-    {
-      var networkObj = _heldObject.GetComponent<NetworkObject>();
-      var pickupType = PickupableManager.GetPickupableType(networkObj.gameObject);
-      PlayerController.s_LocalPlayer.RequestChangePickupableRpc(networkObj.NetworkObjectId, pickupType == PickupableManager.PickupableType.APPLE ? PickupableManager.PickupableType.BANANA : PickupableManager.PickupableType.APPLE);
-    }
+    _slot.Set(pickupable);
+    _slot._Pickupable._GameObject.transform.position = _gameObject.transform.position + new Vector3(0f, 2f, 0f);
   }
-  public void UnsetObject()
+  public void Unset()
   {
-    _heldObject = null;
+    _slot.Unset();
   }
 
-  public ulong _HeldObjectId { get { return _heldObject.GetComponent<NetworkObject>().NetworkObjectId; } }
-
-  public bool HasThisObject(GameObject gameObject)
+  public bool HasThisObject(Pickupable pickupable)
   {
     if (!_HasObject) return false;
-    return _heldObject.Equals(gameObject);
+    return _slot._Pickupable.Equals(pickupable);
   }
 }

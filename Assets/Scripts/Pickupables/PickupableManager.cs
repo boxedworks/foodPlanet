@@ -8,14 +8,21 @@ public class PickupableManager
   public static PickupableManager s_Singleton;
 
   //
-  List<GameObject> _pickups;
+  List<Pickupable> _pickups;
+  public enum PickupableType
+  {
+    NONE,
+
+    APPLE,
+    BANANA,
+  }
 
   //
   public PickupableManager()
   {
     s_Singleton = this;
 
-    _pickups = new List<GameObject>();
+    _pickups = new();
   }
 
   //
@@ -24,14 +31,6 @@ public class PickupableManager
 
   }
 
-  //
-  public enum PickupableType
-  {
-    NONE,
-
-    APPLE,
-    BANANA,
-  }
   public static GameObject SpawnPickupable(Vector3 atPosition, PickupableType ofType)
   {
     var prefab = HelloWorldManager.s_Singleton._NetworkPrefabs.PrefabList[1].Prefab;
@@ -43,6 +42,13 @@ public class PickupableManager
     PlayerController.s_LocalPlayer.RequestSpawnPickupableRpc(networkObject.NetworkObjectId, ofType);
 
     return instance;
+  }
+
+  public static Pickupable GetPickupable(NetworkObject networkObject)
+  {
+    foreach (var p in s_Singleton._pickups)
+      if (p.Equals(networkObject)) return p;
+    return null;
   }
 
   public static PickupableType GetPickupableType(GameObject pickupable)
@@ -62,22 +68,23 @@ public class PickupableManager
 
   public static void RequestSpawnPickupableRpc(ulong networkId, PickupableType asType)
   {
-
     var obj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[networkId];
     obj.gameObject.name = "Pickupable";
 
     SetPickupableModel(obj.gameObject, asType);
 
-    s_Singleton._pickups.Add(obj.gameObject);
+    s_Singleton._pickups.Add(new Pickupable(asType, obj));
   }
 
   public static void RequestChangePickupableToRpc(ulong networkId, PickupableType toType)
   {
-
     var obj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[networkId];
 
     GameObject.Destroy(obj.transform.GetChild(0).gameObject);
 
     SetPickupableModel(obj.gameObject, toType);
+
+    var pickup = GetPickupable(obj);
+    pickup._Type = toType;
   }
 }

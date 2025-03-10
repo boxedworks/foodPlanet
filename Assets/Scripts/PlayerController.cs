@@ -120,7 +120,6 @@ public class PlayerController : CustomNetworkController
               if (hit.collider.name.StartsWith("Counter"))
               {
 
-                // Get counter block
                 var counterBlock = BlockManager.GetBlock(BlockManager.BlockType.COUNTER, hit.collider.gameObject) as CounterBlock;
                 if (counterBlock != null)
                 {
@@ -138,7 +137,32 @@ public class PlayerController : CustomNetworkController
                   }
                 }
               }
+
+              // Place item on stove
+              else if (hit.collider.name.StartsWith("Stove"))
+              {
+
+                var stoveBlock = BlockManager.GetBlock(BlockManager.BlockType.STOVE, hit.collider.gameObject) as StoveBlock;
+                if (stoveBlock != null)
+                {
+
+                  // Check if counter empty
+                  if (!stoveBlock._HasObject)
+                  {
+
+                    var networkId = hand._NetworkObject.NetworkObjectId;
+
+                    SetUnGrabRpc(networkId, side);
+                    hand._Rb.isKinematic = true;
+
+                    NetworkObjectWithBlockRpc(networkId, stoveBlock._Id);
+                  }
+                }
+              }
+
             }
+
+            // Empty hand
             else
             {
 
@@ -328,6 +352,7 @@ public class PlayerController : CustomNetworkController
   {
 
     var obj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[objId];
+    var pickup = PickupableManager.GetPickupable(obj);
 
     // Check others grabbed
     foreach (var player in s_players)
@@ -346,14 +371,22 @@ public class PlayerController : CustomNetworkController
       }
     }
 
-    // Check counters
+    // Check blocks
     foreach (CounterBlock counter in BlockManager.GetBlocksByType(BlockManager.BlockType.COUNTER))
     {
 
       if (!counter._HasObject) continue;
-      if (!counter.HasThisObject(obj.gameObject)) continue;
+      if (!counter.HasThisObject(pickup)) continue;
 
-      counter.UnsetObject();
+      counter.Unset();
+    }
+    foreach (StoveBlock stove in BlockManager.GetBlocksByType(BlockManager.BlockType.STOVE))
+    {
+
+      if (!stove._HasObject) continue;
+      if (!stove.HasThisObject(pickup)) continue;
+
+      stove.Unset();
     }
 
     // Grab
@@ -420,6 +453,7 @@ public class PlayerController : CustomNetworkController
 
     // Get network object and block
     var obj = NetworkManager.Singleton.SpawnManager.SpawnedObjects[objId];
+    var pickup = PickupableManager.GetPickupable(obj);
     var block = BlockManager.GetBlockById(blockId);
 
     // Check different interactions per block type
@@ -431,7 +465,17 @@ public class PlayerController : CustomNetworkController
         var counter = block as CounterBlock;
         if (!counter._HasObject)
         {
-          counter.SetObject(obj.gameObject);
+          counter.Set(pickup);
+        }
+
+        break;
+
+      case BlockManager.BlockType.STOVE:
+
+        var stove = block as StoveBlock;
+        if (!stove._HasObject)
+        {
+          stove.Set(pickup);
         }
 
         break;
@@ -456,6 +500,16 @@ public class PlayerController : CustomNetworkController
         if (counter._HasObject)
         {
           GrabObjectRpc(counter._HeldObjectId, side);
+        }
+
+        break;
+
+      case BlockManager.BlockType.STOVE:
+
+        var stove = block as StoveBlock;
+        if (stove._HasObject)
+        {
+          GrabObjectRpc(stove._HeldObjectId, side);
         }
 
         break;
